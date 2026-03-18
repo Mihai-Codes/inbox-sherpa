@@ -152,7 +152,12 @@ async function sendMatrixNotification(message: string) {
     body: JSON.stringify(payload),
   });
 
-  return resp.ok;
+  if (resp.ok) return true;
+
+  // Explicitly allow fallback on auth/rate-limit/server errors
+  if ([401, 403, 429].includes(resp.status)) return false;
+  if (resp.status >= 500) return false;
+  return false;
 }
 
 async function sendNtfyNotification(message: string) {
