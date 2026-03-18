@@ -437,6 +437,19 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/debug/status", (_req, res) => {
+  res.json({
+    ok: true,
+    devMode,
+    notifier,
+    notifierFallback,
+    matrixHomeserver,
+    matrixRoomId: matrixRoomId || loadStoredRoomId(),
+    hasMatrixToken: Boolean(matrixAccessToken),
+    ntfyConfigured: Boolean(ntfyTopic),
+  });
+});
+
 app.listen(port, () => {
   console.log(`Inbox Sherpa webhook receiver listening on :${port}`);
 });
