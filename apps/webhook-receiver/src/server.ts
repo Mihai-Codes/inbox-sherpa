@@ -223,7 +223,7 @@ function remember(id: string) {
   }
 }
 
-app.post("/webhook/mymx", (req, res) => {
+app.post("/webhook/mymx", async (req, res) => {
   const rawBody = req.body;
   const headers = Object.fromEntries(
     Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(",") : v])
@@ -304,5 +304,5 @@ app.get("/health", (_req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Mailbrain webhook receiver listening on :${port}`);
+  console.log(`Inbox Sherpa webhook receiver listening on :${port}`);
 });
