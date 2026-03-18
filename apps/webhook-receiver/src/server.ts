@@ -16,6 +16,7 @@ const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
 let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
 const matrixRoomStore = process.env.MATRIX_ROOM_STORE || "./matrix-room.json";
+const matrixInviteUser = process.env.MATRIX_INVITE_USER || "";
 
 if (!secret) {
   throw new Error("Missing MYMX_WEBHOOK_SECRET");
@@ -189,7 +190,24 @@ async function ensureMatrixRoom(): Promise<boolean> {
 
   matrixRoomId = roomId;
   saveRoomId(roomId);
+
+  if (matrixInviteUser) {
+    await inviteMatrixUser(roomId, matrixInviteUser);
+  }
   return true;
+}
+
+async function inviteMatrixUser(roomId: string, userId: string): Promise<boolean> {
+  const url = `${matrixHomeserver}/_matrix/client/v3/rooms/${encodeURIComponent(
+    roomId
+  )}/invite?access_token=${encodeURIComponent(matrixAccessToken)}`;
+  const payload = { user_id: userId };
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return resp.ok;
 }
 
 // MyMX needs raw text body to verify signatures.
