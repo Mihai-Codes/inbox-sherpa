@@ -12,11 +12,23 @@ const secret = process.env.MYMX_WEBHOOK_SECRET || "";
 const eventStorePath = process.env.EVENT_STORE || "./events.jsonl";
 const rulesPath = process.env.RULES_PATH || "./rules.json";
 const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
+const notifier = (process.env.NOTIFIER || "matrix").toLowerCase();
 const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
 let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
 const matrixRoomStore = process.env.MATRIX_ROOM_STORE || "./matrix-room.json";
 const matrixInviteUser = process.env.MATRIX_INVITE_USER || "";
+
+const ntfyUrl = process.env.NTFY_URL || "https://ntfy.sh";
+const ntfyTopic = process.env.NTFY_TOPIC || "";
+
+const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL || "";
+const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || "";
+
+const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || "";
+const telegramChatId = process.env.TELEGRAM_CHAT_ID || "";
+
+const genericWebhookUrl = process.env.WEBHOOK_NOTIFY_URL || "";
 
 if (!secret) {
   throw new Error("Missing MYMX_WEBHOOK_SECRET");
@@ -140,6 +152,77 @@ async function sendMatrixNotification(message: string) {
   });
 
   return resp.ok;
+}
+
+async function sendNtfyNotification(message: string) {
+  if (!ntfyTopic) return false;
+  const url = `${ntfyUrl.replace(/\/$/, "")}/${encodeURIComponent(ntfyTopic)}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: message,
+  });
+  return resp.ok;
+}
+
+async function sendSlackNotification(message: string) {
+  if (!slackWebhookUrl) return false;
+  const resp = await fetch(slackWebhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: message }),
+  });
+  return resp.ok;
+}
+
+async function sendDiscordNotification(message: string) {
+  if (!discordWebhookUrl) return false;
+  const resp = await fetch(discordWebhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: message }),
+  });
+  return resp.ok;
+}
+
+async function sendTelegramNotification(message: string) {
+  if (!telegramBotToken || !telegramChatId) return false;
+  const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: telegramChatId, text: message }),
+  });
+  return resp.ok;
+}
+
+async function sendGenericWebhook(message: string) {
+  if (!genericWebhookUrl) return false;
+  const resp = await fetch(genericWebhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  return resp.ok;
+}
+
+async function sendNotification(message: string) {
+  switch (notifier) {
+    case "matrix":
+      return sendMatrixNotification(message);
+    case "ntfy":
+      return sendNtfyNotification(message);
+    case "slack":
+      return sendSlackNotification(message);
+    case "discord":
+      return sendDiscordNotification(message);
+    case "telegram":
+      return sendTelegramNotification(message);
+    case "webhook":
+      return sendGenericWebhook(message);
+    default:
+      return false;
+  }
 }
 
 function loadStoredRoomId(): string | null {
@@ -285,7 +368,7 @@ app.post("/webhook/mymx", async (req, res) => {
           .filter(Boolean)
           .join("\n");
 
-        notified = await sendMatrixNotification(summary);
+        notified = await sendNotification(summary);
       }
     }
 

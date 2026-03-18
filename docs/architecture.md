@@ -23,7 +23,7 @@
   - Safety flags (phishing / social engineering / NSFW)
 
 - **Notification adapter**
-  - Matrix/Beeper push (via Matrix REST API)
+  - Pluggable channels (Matrix/Beeper, ntfy, Slack, Discord, Telegram, webhook)
   - Later: ElevenLabs voice
 
 ## Future upgrades
