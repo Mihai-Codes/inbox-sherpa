@@ -32,6 +32,10 @@ npm run dev
 ## Environment
 See `.env.example` in `apps/webhook-receiver`.
 
+## Matrix/Beeper notifications
+If `MATRIX_ROOM_ID` is not set, Inbox Sherpa will auto-create a private room
+using your Matrix access token and store the room ID in `MATRIX_ROOM_STORE`.
+
 ## Notes
 - Webhook handler must be idempotent (same event ID can be retried).
 - MyMX signature verification is required in production.

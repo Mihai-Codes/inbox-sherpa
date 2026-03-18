@@ -11,7 +11,7 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mymx": "^1.0.0"
+    "mymx": "^0.3.91"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

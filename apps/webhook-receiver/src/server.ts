@@ -14,7 +14,8 @@ const rulesPath = process.env.RULES_PATH || "./rules.json";
 const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
 const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
-const matrixRoomId = process.env.MATRIX_ROOM_ID || "";
+let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
+const matrixRoomStore = process.env.MATRIX_ROOM_STORE || "./matrix-room.json";
 
 if (!secret) {
   throw new Error("Missing MYMX_WEBHOOK_SECRET");
@@ -116,7 +117,11 @@ function scoreEmail(subject: string | null, body: string | null, from: string | 
 }
 
 async function sendMatrixNotification(message: string) {
-  if (!matrixAccessToken || !matrixRoomId) return false;
+  if (!matrixAccessToken) return false;
+  if (!matrixRoomId) {
+    const created = await ensureMatrixRoom();
+    if (!created) return false;
+  }
   const txnId = `inbox-sherpa-${Date.now()}`;
   const url = `${matrixHomeserver}/_matrix/client/v3/rooms/${encodeURIComponent(
     matrixRoomId
@@ -134,6 +139,57 @@ async function sendMatrixNotification(message: string) {
   });
 
   return resp.ok;
+}
+
+function loadStoredRoomId(): string | null {
+  try {
+    if (!fs.existsSync(matrixRoomStore)) return null;
+    const raw = fs.readFileSync(matrixRoomStore, "utf8");
+    const data = JSON.parse(raw);
+    return typeof data.room_id === "string" ? data.room_id : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveRoomId(roomId: string) {
+  ensureStoreDir(matrixRoomStore);
+  fs.writeFileSync(matrixRoomStore, JSON.stringify({ room_id: roomId }, null, 2), "utf8");
+}
+
+async function ensureMatrixRoom(): Promise<boolean> {
+  if (matrixRoomId) return true;
+  const stored = loadStoredRoomId();
+  if (stored) {
+    matrixRoomId = stored;
+    return true;
+  }
+
+  const url = `${matrixHomeserver}/_matrix/client/v3/createRoom?access_token=${encodeURIComponent(
+    matrixAccessToken
+  )}`;
+
+  const payload = {
+    name: "Inbox Sherpa Alerts",
+    topic: "Priority email alerts from Inbox Sherpa",
+    preset: "private_chat",
+    is_direct: false,
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  const roomId = data?.room_id;
+  if (typeof roomId !== "string") return false;
+
+  matrixRoomId = roomId;
+  saveRoomId(roomId);
+  return true;
 }
 
 // MyMX needs raw text body to verify signatures.
