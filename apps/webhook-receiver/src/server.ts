@@ -14,6 +14,7 @@ const rulesPath = process.env.RULES_PATH || "./rules.json";
 const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
 const notifier = (process.env.NOTIFIER || "matrix").toLowerCase();
 const notifierFallback = (process.env.NOTIFIER_FALLBACK || "").toLowerCase();
+const devMode = (process.env.DEV_MODE || "false").toLowerCase() === "true";
 const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
 let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
@@ -343,11 +344,15 @@ app.post("/webhook/mymx", async (req, res) => {
   );
 
   try {
-    const event = handleWebhook({
-      body: rawBody,
-      headers,
-      secret,
-    });
+    const event = devMode
+      ? JSON.parse(rawBody)
+      : handleWebhook({
+          body: rawBody,
+          headers,
+          secret,
+        });
+
+    console.log(`Webhook received: ${event.id}`);
 
     if (seen.has(event.id)) {
       return res.status(200).set(MYMX_CONFIRMED_HEADER, "true").end();
@@ -381,6 +386,7 @@ app.post("/webhook/mymx", async (req, res) => {
           .join("\n");
 
         notified = await sendNotification(summary);
+        console.log(`Notification sent: ${notified}`);
       }
     }
 
@@ -401,6 +407,7 @@ app.post("/webhook/mymx", async (req, res) => {
     };
 
     appendEvent(JSON.stringify(record));
+    console.log(`Event stored: ${event.id}`);
 
     return res.status(200).set(MYMX_CONFIRMED_HEADER, "true").end();
   } catch (err) {
@@ -409,6 +416,20 @@ app.post("/webhook/mymx", async (req, res) => {
     }
     console.error(err);
     return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+// DEV helper: accepts already-parsed JSON without signature verification
+app.post("/webhook/mymx/dev", async (req, res) => {
+  if (!devMode) return res.status(404).end();
+  try {
+    const event = req.body && typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    if (!event?.id || !event?.email) return res.status(400).json({ error: "invalid_event" });
+    req.body = JSON.stringify(event);
+    return app.handle(req, res);
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({ error: "invalid_json" });
   }
 });
 
