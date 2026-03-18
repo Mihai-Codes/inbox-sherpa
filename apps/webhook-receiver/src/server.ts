@@ -10,9 +10,130 @@ const app = express();
 const port = Number(process.env.PORT || 4567);
 const secret = process.env.MYMX_WEBHOOK_SECRET || "";
 const eventStorePath = process.env.EVENT_STORE || "./events.jsonl";
+const rulesPath = process.env.RULES_PATH || "./rules.json";
+const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
+const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
+const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
+const matrixRoomId = process.env.MATRIX_ROOM_ID || "";
 
 if (!secret) {
   throw new Error("Missing MYMX_WEBHOOK_SECRET");
+}
+
+type Rules = {
+  vip_senders: string[];
+  block_senders: string[];
+  high_priority_keywords: string[];
+  ai_news_keywords: string[];
+  phishing_keywords: string[];
+  nsfw_keywords: string[];
+};
+
+const defaultRules: Rules = {
+  vip_senders: [],
+  block_senders: [],
+  high_priority_keywords: [],
+  ai_news_keywords: [],
+  phishing_keywords: [],
+  nsfw_keywords: [],
+};
+
+function loadRules(): Rules {
+  try {
+    if (!fs.existsSync(rulesPath)) return defaultRules;
+    const raw = fs.readFileSync(rulesPath, "utf8");
+    const data = JSON.parse(raw);
+    return { ...defaultRules, ...data };
+  } catch (err) {
+    console.warn("Failed to load rules.json, using defaults", err);
+    return defaultRules;
+  }
+}
+
+function includesAny(haystack: string, needles: string[]): string[] {
+  const hits: string[] = [];
+  const lower = haystack.toLowerCase();
+  for (const n of needles) {
+    if (!n) continue;
+    if (lower.includes(n.toLowerCase())) hits.push(n);
+  }
+  return hits;
+}
+
+function isBlockedSender(from: string | null, rules: Rules): boolean {
+  if (!from) return false;
+  const lower = from.toLowerCase();
+  return rules.block_senders.some((s) => lower.includes(s.toLowerCase()));
+}
+
+function isVipSender(from: string | null, rules: Rules): boolean {
+  if (!from) return false;
+  const lower = from.toLowerCase();
+  return rules.vip_senders.some((s) => lower.includes(s.toLowerCase()));
+}
+
+function scoreEmail(subject: string | null, body: string | null, from: string | null, rules: Rules) {
+  let score = 0;
+  const reasons: string[] = [];
+  const flags: string[] = [];
+
+  const text = `${subject || ""}\n${body || ""}`.trim();
+
+  if (isVipSender(from, rules)) {
+    score += 50;
+    reasons.push("VIP sender");
+  }
+
+  const waitlistHits = includesAny(text, ["off the waitlist", "accepted", "invitation", "you're in"]);
+  if (waitlistHits.length) {
+    score += 40;
+    reasons.push("Waitlist/acceptance signal");
+  }
+
+  const highHits = includesAny(text, rules.high_priority_keywords);
+  if (highHits.length) {
+    score += Math.min(30, 10 * highHits.length);
+    reasons.push(`High-priority keywords: ${highHits.slice(0, 3).join(", ")}`);
+  }
+
+  const aiHits = includesAny(text, rules.ai_news_keywords);
+  if (aiHits.length) {
+    score += Math.min(20, 5 * aiHits.length);
+    reasons.push(`AI news keywords: ${aiHits.slice(0, 3).join(", ")}`);
+  }
+
+  const phishingHits = includesAny(text, rules.phishing_keywords);
+  if (phishingHits.length) {
+    flags.push("phishing");
+  }
+
+  const nsfwHits = includesAny(text, rules.nsfw_keywords);
+  if (nsfwHits.length) {
+    flags.push("nsfw");
+  }
+
+  return { score, reasons, flags };
+}
+
+async function sendMatrixNotification(message: string) {
+  if (!matrixAccessToken || !matrixRoomId) return false;
+  const txnId = `inbox-sherpa-${Date.now()}`;
+  const url = `${matrixHomeserver}/_matrix/client/v3/rooms/${encodeURIComponent(
+    matrixRoomId
+  )}/send/m.room.message/${txnId}?access_token=${encodeURIComponent(matrixAccessToken)}`;
+
+  const payload = {
+    msgtype: "m.text",
+    body: message,
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return resp.ok;
 }
 
 // MyMX needs raw text body to verify signatures.
@@ -65,14 +186,48 @@ app.post("/webhook/mymx", (req, res) => {
 
     remember(event.id);
 
+    const rules = loadRules();
+
+    const from = event.email.headers.from;
+    const subject = event.email.headers.subject;
+    const bodyText = event.email.parsed?.body_text || null;
+
+    const blocked = isBlockedSender(from, rules);
+    const { score, reasons, flags } = scoreEmail(subject, bodyText, from, rules);
+
+    let notified = false;
+    if (!blocked) {
+      const isVip = isVipSender(from, rules);
+      const hasFlags = flags.length > 0;
+      const shouldNotify = (score >= notifyThreshold && !hasFlags) || (isVip && !hasFlags);
+
+      if (shouldNotify) {
+        const summary = [
+          `📬 ${subject || "(no subject)"}`,
+          `From: ${from || "unknown"}`,
+          `Score: ${score}`,
+          reasons.length ? `Why: ${reasons.join(" | ")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        notified = await sendMatrixNotification(summary);
+      }
+    }
+
     const record = {
       id: event.id,
       received_at: event.email.received_at,
-      from: event.email.headers.from,
-      subject: event.email.headers.subject,
+      from,
+      subject,
       to: event.email.headers.to,
-      body_text: event.email.parsed?.body_text || null,
+      body_text: bodyText,
       spam_score: event.email.analysis?.spamassassin?.score ?? null,
+      score,
+      reasons,
+      flags,
+      blocked,
+      notified,
       raw_event: event,
     };
 

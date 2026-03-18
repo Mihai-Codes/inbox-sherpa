@@ -1,0 +1,39 @@
+{
+  "vip_senders": [
+    "@yourdomain.com",
+    "important.person@example.com"
+  ],
+  "block_senders": [
+    "noreply@",
+    "no-reply@",
+    "newsletter@"
+  ],
+  "high_priority_keywords": [
+    "accepted",
+    "off the waitlist",
+    "invitation",
+    "action required",
+    "payment failed",
+    "urgent"
+  ],
+  "ai_news_keywords": [
+    "model",
+    "release",
+    "paper",
+    "benchmark",
+    "research",
+    "launch"
+  ],
+  "phishing_keywords": [
+    "verify your account",
+    "suspended",
+    "click here",
+    "password reset",
+    "unusual activity"
+  ],
+  "nsfw_keywords": [
+    "explicit",
+    "adult",
+    "nsfw"
+  ]
+}

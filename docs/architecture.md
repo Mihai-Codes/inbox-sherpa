@@ -23,7 +23,7 @@
   - Safety flags (phishing / social engineering / NSFW)
 
 - **Notification adapter**
-  - CodeBeep/Beeper for push
+  - Matrix/Beeper push (via Matrix REST API)
   - Later: ElevenLabs voice
 
 ## Future upgrades

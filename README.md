@@ -1,6 +1,6 @@
-# Mailbrain
+# Inbox Sherpa
 
-Mailbrain is a local-first mail intelligence system that ingests inbound email via MyMX webhooks, prioritizes what matters, and notifies you through Beeper/CodeBeep (later: ElevenLabs voice). The goal: you stop checking mail and only get alerts for high‑value messages.
+Inbox Sherpa is a local-first mail intelligence system that ingests inbound email via MyMX webhooks, prioritizes what matters, and notifies you through Beeper/CodeBeep (later: ElevenLabs voice). The goal: you stop checking mail and only get alerts for high‑value messages.
 
 ## MVP goals
 - Receive inbound email webhooks (MyMX)

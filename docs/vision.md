@@ -1,6 +1,6 @@
 # Vision
 
-Mailbrain is a personal email intelligence layer that aggregates inbound email from all providers (Gmail, iCloud, forwarded domains, Cloudflare email routing, edu addresses, etc.), scores and filters it, and sends only the most important notifications to you.
+Inbox Sherpa is a personal email intelligence layer that aggregates inbound email from all providers (Gmail, iCloud, forwarded domains, Cloudflare email routing, edu addresses, etc.), scores and filters it, and sends only the most important notifications to you.
 
 ## Pain points solved
 - You no longer need to check email manually.
