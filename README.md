@@ -41,6 +41,9 @@ Supported channels (MVP):
 - **Telegram Bot API**: https://telegram-bot-sdk.readme.io/reference/sendmessage
 - **Generic webhook** (POST JSON)
 
+Fallbacks:
+- Set `NOTIFIER` and `NOTIFIER_FALLBACK` to chain delivery (e.g., `matrix` → `ntfy`).
+
 If `MATRIX_ROOM_ID` is not set, Inbox Sherpa will auto-create a private room
 using your Matrix access token and store the room ID in `MATRIX_ROOM_STORE`.
 

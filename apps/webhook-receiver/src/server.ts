@@ -13,6 +13,7 @@ const eventStorePath = process.env.EVENT_STORE || "./events.jsonl";
 const rulesPath = process.env.RULES_PATH || "./rules.json";
 const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
 const notifier = (process.env.NOTIFIER || "matrix").toLowerCase();
+const notifierFallback = (process.env.NOTIFIER_FALLBACK || "").toLowerCase();
 const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
 let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
@@ -207,22 +208,28 @@ async function sendGenericWebhook(message: string) {
 }
 
 async function sendNotification(message: string) {
-  switch (notifier) {
-    case "matrix":
-      return sendMatrixNotification(message);
-    case "ntfy":
-      return sendNtfyNotification(message);
-    case "slack":
-      return sendSlackNotification(message);
-    case "discord":
-      return sendDiscordNotification(message);
-    case "telegram":
-      return sendTelegramNotification(message);
-    case "webhook":
-      return sendGenericWebhook(message);
-    default:
-      return false;
-  }
+  const trySend = async (channel: string): Promise<boolean> => {
+    switch (channel) {
+      case "matrix":
+        return sendMatrixNotification(message);
+      case "ntfy":
+        return sendNtfyNotification(message);
+      case "slack":
+        return sendSlackNotification(message);
+      case "discord":
+        return sendDiscordNotification(message);
+      case "telegram":
+        return sendTelegramNotification(message);
+      case "webhook":
+        return sendGenericWebhook(message);
+      default:
+        return false;
+    }
+  };
+
+  if (await trySend(notifier)) return true;
+  if (notifierFallback) return trySend(notifierFallback);
+  return false;
 }
 
 function loadStoredRoomId(): string | null {
