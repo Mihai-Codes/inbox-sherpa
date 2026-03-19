@@ -426,7 +426,66 @@ app.post("/webhook/mymx/dev", async (req, res) => {
     const event = req.body && typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     if (!event?.id || !event?.email) return res.status(400).json({ error: "invalid_event" });
     req.body = JSON.stringify(event);
-    return app.handle(req, res);
+    const rawBody = req.body;
+    const headers = Object.fromEntries(
+      Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(",") : v])
+    );
+
+    const parsedEvent = JSON.parse(rawBody);
+    if (seen.has(parsedEvent.id)) {
+      return res.status(200).set(MYMX_CONFIRMED_HEADER, "true").end();
+    }
+
+    remember(parsedEvent.id);
+
+    const rules = loadRules();
+    const from = parsedEvent.email.headers.from;
+    const subject = parsedEvent.email.headers.subject;
+    const bodyText = parsedEvent.email.parsed?.body_text || null;
+
+    const blocked = isBlockedSender(from, rules);
+    const { score, reasons, flags } = scoreEmail(subject, bodyText, from, rules);
+
+    let notified = false;
+    if (!blocked) {
+      const isVip = isVipSender(from, rules);
+      const hasFlags = flags.length > 0;
+      const shouldNotify = (score >= notifyThreshold && !hasFlags) || (isVip && !hasFlags);
+
+      if (shouldNotify) {
+        const summary = [
+          `📬 ${subject || "(no subject)"}`,
+          `From: ${from || "unknown"}`,
+          `Score: ${score}`,
+          reasons.length ? `Why: ${reasons.join(" | ")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        notified = await sendNotification(summary);
+        console.log(`Notification sent: ${notified}`);
+      }
+    }
+
+    const record = {
+      id: parsedEvent.id,
+      received_at: parsedEvent.email.received_at,
+      from,
+      subject,
+      to: parsedEvent.email.headers.to,
+      body_text: bodyText,
+      spam_score: parsedEvent.email.analysis?.spamassassin?.score ?? null,
+      score,
+      reasons,
+      flags,
+      blocked,
+      notified,
+      raw_event: parsedEvent,
+    };
+
+    appendEvent(JSON.stringify(record));
+    console.log(`Event stored: ${parsedEvent.id}`);
+    return res.status(200).set(MYMX_CONFIRMED_HEADER, "true").end();
   } catch (err) {
     console.error(err);
     return res.status(400).json({ error: "invalid_json" });
