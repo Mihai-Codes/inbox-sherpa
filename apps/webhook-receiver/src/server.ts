@@ -15,6 +15,7 @@ const notifyThreshold = Number(process.env.NOTIFY_THRESHOLD || 60);
 const notifier = (process.env.NOTIFIER || "matrix").toLowerCase();
 const notifierFallback = (process.env.NOTIFIER_FALLBACK || "").toLowerCase();
 const devMode = (process.env.DEV_MODE || "false").toLowerCase() === "true";
+const devForceNotify = (process.env.DEV_FORCE_NOTIFY || "false").toLowerCase() === "true";
 const matrixHomeserver = process.env.MATRIX_HOMESERVER || "https://matrix.beeper.com";
 const matrixAccessToken = process.env.MATRIX_ACCESS_TOKEN || "";
 let matrixRoomId = process.env.MATRIX_ROOM_ID || "";
@@ -373,7 +374,10 @@ app.post("/webhook/mymx", async (req, res) => {
     if (!blocked) {
       const isVip = isVipSender(from, rules);
       const hasFlags = flags.length > 0;
-      const shouldNotify = (score >= notifyThreshold && !hasFlags) || (isVip && !hasFlags);
+      const shouldNotify =
+        (score >= notifyThreshold && !hasFlags) ||
+        (isVip && !hasFlags) ||
+        (devMode && devForceNotify);
 
       if (shouldNotify) {
         const summary = [
@@ -450,7 +454,10 @@ app.post("/webhook/mymx/dev", async (req, res) => {
     if (!blocked) {
       const isVip = isVipSender(from, rules);
       const hasFlags = flags.length > 0;
-      const shouldNotify = (score >= notifyThreshold && !hasFlags) || (isVip && !hasFlags);
+      const shouldNotify =
+        (score >= notifyThreshold && !hasFlags) ||
+        (isVip && !hasFlags) ||
+        (devMode && devForceNotify);
 
       if (shouldNotify) {
         const summary = [

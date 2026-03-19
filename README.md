@@ -32,6 +32,9 @@ npm run dev
 ## Environment
 See `.env.example` in `apps/webhook-receiver`.
 
+## Local dev mode (no signature verification)
+Set `DEV_MODE=true` and POST a MyMX-style JSON payload to `/webhook/mymx/dev`.
+
 ## Notifications (pluggable)
 Supported channels (MVP):
 - **Matrix/Beeper** (recommended for local-first). Works great with [CodeBeep](https://github.com/Mihai-Codes/codebeep).
